@@ -200,7 +200,6 @@ int main(int argc, char** argv){
             SDDS<DS<float>*>::insert(b1_locals, e, FEM::calculate_local_b1(current_elem));
             //Se calcula la b2 local y se añade al listado de matrices b. Se envía la fuente de calor
             SDDS<DS<float>*>::insert(b2_locals, e, FEM::calculate_local_b2(current_elem));
-            //Se calcula la b2 local y se añade al listado de matrices b. Se envía la fuente de calor
             SDDS<DS<float>*>::insert(H_locals, e, FEM::calculate_local_H(current_elem));
             cout << "OK\n\n";
         }
@@ -228,6 +227,11 @@ int main(int argc, char** argv){
             //Se extrae la matriz K del elemento actual y se envía a ensamblaje
             SDDS<DS<float>*>::extract(K_locals,e,&temp);
             FEM::assembly(K, temp, current_elem, true);
+
+            SDDS<DS<float>*>::extract(H_locals,e,&temp);
+            FEM::assembly(H, temp, current_elem, true);
+
+            FEM::assembly(b1, temp, current_elem, false); //Se indica que ensamblará una matriz 3 x 1
             //Se extrae la matriz b del elemento actual y se envía a ensamblaje
             SDDS<DS<float>*>::extract(b1_locals,e,&temp);
             FEM::assembly(b1, temp, current_elem, false); //Se indica que ensamblará una matriz 3 x 1
@@ -237,8 +241,9 @@ int main(int argc, char** argv){
         cout << "\tApplying Neumann conditions... ";
         //Se agrega la matriz de valores de Neumann a la matriz b global
         Math::sum_in_place(b1,T_N);
-        cout << "OK\n\n";
         Math::sum_in_place(b2,T_N);
+        cout << "OK\n\n";
+        
 
         cout << "\tApplying Dirichlet conditions... ";
         //Se modifican las matrices globales para aplicar las condiciones de Dirichlet
@@ -254,18 +259,21 @@ int main(int argc, char** argv){
         /*
             Se procede a ejecutar la ecuación de transferencia de calor en su versión discretizada con Forward Euler:
 
-                        T^(i+1) = T^i + M^(-1) * delta_t * ( b - K * T^i )
+                        T^(i+1) = T^i + M^(-1) * delta_t * ( b1 + b2  + K * T^i - H*T^i )
 
             En la expresión anterior, a la matriz b ya se le han incorporado el vector columna de las condiciones
             de Neumann, y el vector columna generado por la aplicación de las condiciones de Dirichlet.
         */
 
         //Se ejecuta K * T, donde T son las temperaturas en el tiempo actual
-        DS<float>* temp = Math::product(K,T);
+        DS<float>* temp = Math::product(H,T);
         //Se multiplica el contenido del resultado anterior por -1 para simular la resta
         Math::product_in_place(temp, -1);
         //Se suma el resultado de -K*T a la matriz b
         Math::sum_in_place(b1, temp);
+         Math::sum_in_place(b1, b2);
+         DS<float>* temp4 = Math::product(K,T);
+         Math::sum_in_place(b1, temp4);
         //Se multiplica el contenido del resultado anterior por delta_t, el paso de tiempo
         Math::product_in_place(b1, dt);
         //Se multiplica el resultado anterior por la inversa de la matriz M, y el resultado se añade a los
@@ -277,7 +285,7 @@ int main(int argc, char** argv){
         DS<float>* temp3 = Math::product( temp2, b1 );
         Math::sum_in_place(T, temp3 );
         //La matriz temp ya no será utilizada, por lo que se libera su espacio en memoria
-        SDDS<float>::destroy(temp);SDDS<float>::destroy(temp2);SDDS<float>::destroy(temp3);
+        SDDS<float>::destroy(temp);SDDS<float>::destroy(temp2);SDDS<float>::destroy(temp3);SDDS<float>::destroy(temp4);
 
         cout << "OK\n\n\tUpdating list of results... ";
 

@@ -113,9 +113,9 @@ class FEM{
 
         static void calculate_L(DS<float>* L){
             //Se definen los elementos de la matriz de acuerdo a la fórmula posición por posición
-            SDDS<float>::insert(L,0,0,1); 
-            SDDS<float>::insert(L,1,0,3);
-            SDDS<float>::insert(L,2,0,1); 
+            SDDS<float>::insert(L,0,0,1); SDDS<float>::insert(L,0,1,1); 
+            SDDS<float>::insert(L,1,0,3); SDDS<float>::insert(L,1,1,3);
+            SDDS<float>::insert(L,2,0,1); SDDS<float>::insert(L,2,1,1);
         }
     /*
         Los métodos públicos son los procedimientos utilitarios directamente
@@ -371,55 +371,38 @@ class FEM{
 
         //CALCULANDO H
         static DS<float>* calculate_local_H(Element* e){
-            //Se preparan las variables para el proceso
+        
             DS<float> *C, *B, *L, *H;
 
-            //Se extraen los puntos que definen los nodos del elemento
             Point* P1 = e->get_Node(0)->get_Point();
             Point* P2 = e->get_Node(1)->get_Point();
             Point* P3 = e->get_Node(2)->get_Point();
 
-            //Se calcula el área del elemento enviando los 3 puntos de sus vértices
-            //float Area = calculate_local_Area(P1,P2,P3);
-
-            //Se extraen los respectivos puntos que definen los nodos del objeto <e> y se envían para el cálculo de J
             float J = calculate_local_J(e->get_Node(0)->get_Point(), e->get_Node(1)->get_Point(), e->get_Node(2)->get_Point());
 
-            //Se calcula el valor D para el elemento enviando los 3 puntos de sus vértices
             float D = calculate_local_D(P1, P2, P3);
 
-            //Se definen la matrix A y su transpuesta con dimensiones 2 x 2
-            //Esto corresponde a las dimensiones resultantes para la aplicación del MEF
-            //a un problema 2D
             SDDS<float>::create(&C,2,2,MATRIX);
-            //Se calcula la matriz A para el elemento enviando los 3 puntos de sus vértices
+
             calculate_local_C(C,P1,P2,P3);
 
-            SDDS<float>::create(&L,3,1,MATRIX);
-            //Se calcula la matriz A para el elemento enviando los 3 puntos de sus vértices
+            SDDS<float>::create(&L,3,2,MATRIX);
+
             calculate_L(L);
 
-            //Se definen la matrix B con dimensiones 2 x 3, y su transpuesta con dimensiones 3 x 2
-            //Esto corresponde a las dimensiones resultantes para la aplicación del MEF
-            //a un problema 2D
             SDDS<float>::create(&B,2,3,MATRIX);
-            //Se calcula la matriz B
+
             calculate_B(B);
 
-            //Se efectúa B^T * A^T * A * B y el resultado se almacena en <K>
-            DS<float>* temp = Math::product( C, B );
-            H = Math::product( temp, L );
+            DS<float>* temp = Math::product( L, C );
+            H = Math::product( temp, B );
             SDDS<float>::destroy(temp);
 
-            //Se multiplica el contenido de la matriz K por el factor k*Area/D^2
             Math::product_in_place(H, J/(60*D));
 
-            //Las matrices A y B, y sus transpuestas, ya no son necesarias, por lo
-            //que se liberan sus espacios en memoria asignados
             SDDS<float>::destroy(C); 
             SDDS<float>::destroy(B); 
 
-            //Se retorna la matriz construida
             return H;
         }
 
